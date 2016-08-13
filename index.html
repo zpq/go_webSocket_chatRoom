@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>websocket</title>
+        <script type="text/javascript" src="http://code.jquery.com/jquery-1.8.3.min.js"></script>
+        <script src="http://cdnjs.cloudflare.com/ajax/libs/vue/1.0.26/vue.min.js"></script>
+        <style media="screen">
+            #container {
+                width: 800px;
+                font-size: 14px;
+                margin: 10px auto;
+            }
+            #header-left{
+                width : 20%;
+                display: inline-block;
+            }
+            #nameBlock{
+                width : 70%;
+                display: inline-block;
+                text-align: right;
+            }
+            #body{
+                display:flex;
+                align-items:flex-start;
+            }
+            #left {
+                width: 500px;
+                height : 500px;
+                display: inline-block;
+            }
+            #right {
+                width: 250px;
+                height: 500px;
+                margin-left: 40px;
+                display: inline-block;
+                border: 1px solid grey;
+            }
+            #content{
+                height : 450px;
+                padding: 5px;
+                border: 1px solid grey;
+                margin-bottom: 10px;
+                overflow-y:auto;
+            }
+            #send-tool{
+                padding: 5px;
+            }
+            #footer{
+                width: 100%;
+                color: #549895;
+                font-size: 16px;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container">
+            <div id="header">
+                <div id="header-left"><h3>welcome to XCroom</h3></div>
+                <div id="nameBlock">
+                    <div v-if="isLogin == '1'" id="islogin">
+                        <h3>[[username]]</h3>
+                    </div>
+                    <div v-else id="notlogin">
+                        input your nickname : <input type="text" v-model="tusername">
+                        <button @click="login">connect</button>
+                    </div>
+                </div>
+                <hr>
+            </div>
+            <div id="body">
+                <div id="left">
+                    <div id="content">
+
+                    </div>
+                    <div id="send-tool">
+                        <input type="text" v-model="inputMessage">
+                        <button @click="send">send</button>
+                    </div>
+                </div>
+                <div id="right">
+                    <p v-for="user in userLists">[[ user.name ]]</p>
+                </div>
+            </div>
+            <div id="footer">
+                <hr>
+                <p>go websocket @2016</p>
+            </div>
+        </div>
+
+        <script>
+
+        Vue.config.delimiters = ['[[', ']]']
+        var vm = new Vue({
+            el : "#container",
+            data : {
+                tusername : '',
+                username : "{{.Username}}",
+                isLogin : "{{.IsLogin}}",
+                ws : null,
+                inputMessage : '',
+                userLists : [],
+            },
+            ready () {
+                if (this.username !== '') {
+                    this.websocket();
+                }
+            },
+            methods : {
+                websocket : function () {
+                    if (!window.WebSocket) {
+                        document.write("Sorry! Your browser does not support websocket!");
+                        return;
+                    }
+                    console.log("begin websocket")
+                    var ws = new WebSocket("{{.Url}}");
+                    this.ws = ws;
+                    var _vm = this;
+                    ws.onopen = function(evt) {
+                        console.log("connecting : " + evt)
+                        ws.send("ping")
+                    }
+                    ws.onclose = function(evt) {
+                        console.log("connect down");
+                        _vm.ws.close();
+                        _vm.username = ''
+                        _vm.isLogin = 0
+                    }
+                    ws.onerror = function(evt) {
+                        console.log("ERROR: " + evt.data);
+                        _vm.username = ''
+                        _vm.isLogin = 0
+                    }
+                    ws.onmessage = function(evt) {
+                        var datas = JSON.parse(evt.data)
+                        if (datas.status == 1) { // receive message
+                            console.log(datas.status)
+                            $("#content").append("<p>" + datas.data[0].content + "</p>");
+                            $("#content")[0].scrollTop = $("#content")[0].scrollHeight;
+                        } else if (datas.status == 2) { //refresh userlists
+                            console.log(datas.status)
+                            console.log(datas.data)
+                            _vm.$set('userLists', datas.data);
+                        }
+                    }
+
+                },
+                login : function() {
+                    var _vm = this
+                    $.ajax({
+                        url : "/login",
+                        type : 'POST',
+                        data : {username : _vm.tusername},
+                        dataType : "json",
+                        success : function(res) {
+                            if (res.status == 1) {
+                                _vm.username = _vm.tusername
+                                _vm.isLogin = true
+                                _vm.tusername = '';
+                                _vm.userLists.push(res.data[0])
+                                _vm.websocket();
+                            } else {
+                                alert(res.message)
+                            }
+                        },
+                        error : function(res) {
+                            console.log(res)
+                        }
+                    });
+                },
+                send : function() {
+                    if (this.username === "") {
+                        alert("Please input your nickname")
+                        return
+                    }
+                    if ($.trim(this.inputMessage) !== '') {
+                        if (this.ws.readyState !== 1) {
+                            // console.log("colse!!!!")
+                            // this.ws.close();
+                            // this.websocket();
+                            // setTimeout(function() {
+                            //     this.ws.send(this.inputMessage)
+                            //     this.inputMessage = '';
+                            // }, 250);
+                        } else {
+                            this.ws.send(this.inputMessage)
+                            this.inputMessage = '';
+                        }
+                    }
+                }
+            }
+        })
+
+        </script>
+    </body>
+</html>
